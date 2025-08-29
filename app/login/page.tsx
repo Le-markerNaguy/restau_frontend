@@ -1,6 +1,5 @@
 "use client"
 
-import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -10,8 +9,18 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ChefHat, ArrowLeft, Eye, EyeOff } from "lucide-react"
 
-// 🔑 Définition de l'URL de base de l'API
 const baseUrl = process.env.NEXT_PUBLIC_API_URL
+
+interface User {
+  id: string
+  email: string
+  role: "SUPERADMIN" | "ADMIN" | string
+}
+
+interface UserResponse {
+  user?: User
+  error?: string
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -22,60 +31,67 @@ export default function LoginPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const router = useRouter()
 
+  // Vérification automatique si l'utilisateur est déjà connecté
   useEffect(() => {
     const checkAuth = async () => {
+      if (!baseUrl) return
       try {
-        const response = await fetch(`${baseUrl}/auth/me`, {
-          credentials: "include",
-        })
+        const response = await fetch(`${baseUrl}/auth/me`, { credentials: "include" })
         if (response.ok) {
-          const userData = await response.json()
-          if (userData.user) {
+          const data: UserResponse = await response.json()
+          if (data.user) {
             setIsAuthenticated(true)
-            if (userData.user.role === "SUPERADMIN") {
-              router.push("/superadmin")
-            } else if (userData.user.role === "ADMIN") {
-              router.push("/admin")
-            }
+            if (data.user.role === "SUPERADMIN") router.replace("/superadmin")
+            else if (data.user.role === "ADMIN") router.replace("/admin")
           }
         }
-      } catch (error) {
-        console.error("Erreur de vérification d'authentification:", error)
+      } catch (err) {
+        console.error("Erreur lors de la vérification d'auth:", err)
       }
     }
-    if (baseUrl) checkAuth()
-  }, [baseUrl, router])
+    checkAuth()
+  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim()) { setError("L'email est requis"); return }
-    if (!password.trim()) { setError("Le mot de passe est requis"); return }
-    if (!baseUrl) { setError("Configuration de l'API manquante"); return }
+    if (!email.trim() || !password.trim()) {
+      setError(!email ? "L'email est requis" : "Le mot de passe est requis")
+      return
+    }
+    if (!baseUrl) {
+      setError("Configuration de l'API manquante")
+      return
+    }
 
     setLoading(true)
     setError("")
     try {
-      const response = await fetch(`${baseUrl}/auth/login`, {
+      const res = await fetch(`${baseUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), motDePasse: password }),
         credentials: "include",
       })
 
-      if (response.ok) {
-        const userResponse = await fetch(`${baseUrl}/auth/me`, { credentials: "include" })
-        if (userResponse.ok) {
-          const userData = await userResponse.json()
-          if (userData.user.role === "SUPERADMIN") router.push("/superadmin")
-          else if (userData.user.role === "ADMIN") router.push("/admin")
-          else setError("Rôle non autorisé")
-        } else setError("Erreur lors de la récupération des informations utilisateur")
-      } else {
-        const errorData = await response.json()
-        setError(errorData.error || "Identifiants invalides")
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string }
+        setError(data.error || "Identifiants invalides")
+        return
       }
-    } catch (error) {
-      console.error("Erreur de connexion:", error)
+
+      // Récupération des infos utilisateur après login
+      const userRes = await fetch(`${baseUrl}/auth/me`, { credentials: "include" })
+      if (userRes.ok) {
+        const data: UserResponse = await userRes.json()
+        if (!data.user) return setError("Impossible de récupérer les informations utilisateur")
+        if (data.user.role === "SUPERADMIN") router.replace("/superadmin")
+        else if (data.user.role === "ADMIN") router.replace("/admin")
+        else setError("Rôle non autorisé")
+      } else {
+        setError("Erreur lors de la récupération des informations utilisateur")
+      }
+    } catch (err) {
+      console.error("Erreur de connexion:", err)
       setError("Erreur de connexion au serveur")
     } finally {
       setLoading(false)
@@ -95,7 +111,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md relative">
         <Button variant="ghost" onClick={() => router.push("/")} className="absolute left-4 top-4">
           <ArrowLeft className="h-4 w-4 mr-2" /> Retour
         </Button>
@@ -155,13 +171,6 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
-                {/* Texte cliquable */}
-                <p
-                  className="text-sm text-primary cursor-pointer select-none"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-                </p>
               </div>
 
               {/* Bouton connexion */}
