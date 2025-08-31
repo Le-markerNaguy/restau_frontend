@@ -28,6 +28,7 @@ interface Order {
 
 export function OrdersManager() {
   const [orders, setOrders] = useState<Order[]>([])
+  const [highlightedIds, setHighlightedIds] = useState<number[]>([]) // ✅ pour highlight
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [filterStatus, setFilterStatus] = useState<Order["status"] | "ALL">("ALL")
@@ -52,11 +53,19 @@ export function OrdersManager() {
     fetchOrders()
 
     const socket: Socket = io(socketUrl, { withCredentials: true })
+    socket.emit("admin:join") // ✅ rejoindre la room admins
 
     socket.on("order:new", (newOrder: Order) => {
       if (isToday(newOrder.createdAt)) {
         setOrders(prev => [newOrder, ...prev])
-        // Jouer le son
+
+        // ✅ Highlight la commande
+        setHighlightedIds(prev => [...prev, newOrder.id])
+        setTimeout(() => {
+          setHighlightedIds(prev => prev.filter(id => id !== newOrder.id))
+        }, 3000)
+
+        // 🔔 Jouer le son
         if (audioRef.current) {
           audioRef.current.currentTime = 0
           audioRef.current.play().catch(() => {})
@@ -107,7 +116,6 @@ export function OrdersManager() {
         return
       }
 
-      // Mettre à jour localement pour déplacer la commande vers la nouvelle catégorie
       setOrders(prev =>
         prev.map(order =>
           order.id === orderId ? { ...order, status: newStatus } : order
@@ -205,7 +213,12 @@ export function OrdersManager() {
       {/* Liste des commandes */}
       <div className="space-y-4">
         {filteredOrders.map(order => (
-          <Card key={order.id} className="border-l-4 border-l-primary">
+          <Card
+            key={order.id}
+            className={`border-l-4 border-l-primary transition-all duration-500 ${
+              highlightedIds.includes(order.id) ? "bg-yellow-50 animate-pulse" : ""
+            }`}
+          >
             <CardHeader className="flex justify-between items-start">
               <div>
                 <CardTitle className="text-lg">
@@ -226,7 +239,6 @@ export function OrdersManager() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Détails des plats */}
               <div className="space-y-2 mb-4">
                 {order.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-sm">
@@ -236,7 +248,6 @@ export function OrdersManager() {
                 ))}
               </div>
 
-              {/* Bouton changement de statut */}
               {getNextStatus(order.status) && (
                 <Button
                   size="sm"
