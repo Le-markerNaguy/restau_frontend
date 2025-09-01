@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, X, Utensils } from "lucide-react"
+import { Search, Plus, X, Utensils, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 // 🔹 Types
@@ -51,9 +51,10 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [cartOpen, setCartOpen] = useState(false)
   const [selectedTable, setSelectedTable] = useState<number | null>(null)
-  const [customerName, setCustomerName] = useState<string>("") // 🔹 nom optionnel
+  const [customerName, setCustomerName] = useState<string>("")
   const [clickCount, setClickCount] = useState(0)
   const [showAdmin, setShowAdmin] = useState(false)
+  const [isSending, setIsSending] = useState(false) // 🔹 nouvel état
   const router = useRouter()
 
   // 🔹 Préfixe images
@@ -143,11 +144,12 @@ export default function HomePage() {
 
     const orderData = {
       tableId: selectedTable,
-      nom: customerName || "", // 🔹 nom du client si renseigné
+      nom: customerName || "",
       plats: cart.map(c => ({ platId: c.platId, quantite: c.quantite })),
     }
 
     try {
+      setIsSending(true) // 🔹 on passe en mode envoi
       const response = await fetch(`${baseUrl}/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -158,7 +160,7 @@ export default function HomePage() {
         alert(`Commande validée ! Numéro de commande : ${data.order.dailyNumber}`)
         setCart([])
         setCartOpen(false)
-        setCustomerName("") // reset champ nom
+        setCustomerName("")
       } else {
         const errorData = await response.json()
         alert(`Erreur : ${errorData.error || "Erreur lors de la commande"}`)
@@ -166,6 +168,8 @@ export default function HomePage() {
     } catch (error) {
       console.error(error)
       alert("Erreur serveur")
+    } finally {
+      setIsSending(false) // 🔹 fin de l'envoi
     }
   }
 
@@ -177,7 +181,6 @@ export default function HomePage() {
       const newCount = prev + 1
       if (newCount >= 3 && !showAdmin) {
         setShowAdmin(true)
-        // Disparaît au bout de 2 minutes
         setTimeout(() => {
           setShowAdmin(false)
           setClickCount(0)
@@ -196,7 +199,7 @@ export default function HomePage() {
             className="text-2xl font-bold text-primary cursor-pointer"
             onClick={handleTitleClick}
           >
-            Restaurant App
+            RestauOpti
           </h1>
 
           {showAdmin && (
@@ -214,7 +217,6 @@ export default function HomePage() {
       <div className="container mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Menu */}
         <div className="lg:col-span-3">
-          {/* Recherche */}
           <div className="mb-4 flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4"/>
@@ -234,7 +236,6 @@ export default function HomePage() {
             </select>
           </div>
 
-          {/* Liste des plats responsives */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredDishes.map(dish => (
               <Card
@@ -283,7 +284,6 @@ export default function HomePage() {
                 <X className="cursor-pointer" onClick={() => setCartOpen(false)} />
               </div>
 
-              {/* Liste des tables */}
               <select
                 value={selectedTable || ""}
                 onChange={(e) => setSelectedTable(Number(e.target.value))}
@@ -297,7 +297,6 @@ export default function HomePage() {
                 ))}
               </select>
 
-              {/* Nom du client (optionnel) */}
               <Input
                 placeholder="Nom du client (optionnel)"
                 value={customerName}
@@ -327,14 +326,24 @@ export default function HomePage() {
                 ))}
               </div>
 
-              {/* Total */}
               <div className="flex justify-between font-bold mb-2">
                 <span>Total</span>
                 <span>{formatCFA(total)}</span>
               </div>
 
-              <Button className="w-full" onClick={handleOrder} disabled={cart.length === 0 || !selectedTable}>
-                Valider la commande
+              <Button
+                className="w-full flex items-center justify-center gap-2"
+                onClick={handleOrder}
+                disabled={cart.length === 0 || !selectedTable || isSending}
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Commande en cours d’envoi…
+                  </>
+                ) : (
+                  "Valider la commande"
+                )}
               </Button>
             </div>
           )}
