@@ -1,18 +1,19 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { io, Socket } from "socket.io-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Clock, CheckCircle, AlertCircle, Package, Truck } from "lucide-react"
+import { useWebSocket } from "../websocket-provider"
 
+// ✅ Type adapté à OrderDTO côté frontend
 interface OrderItem {
-  dishId: number
-  quantity: number
   dishName: string
   price: number
+  quantity: number
+  subtotal: number
 }
 
 interface Order {
@@ -24,21 +25,21 @@ interface Order {
   totalAmount: number
   customerName?: string
   notes?: string
+  dailyNumber?: number
 }
 
 export function OrdersManager() {
   const [orders, setOrders] = useState<Order[]>([])
-  const [highlightedIds, setHighlightedIds] = useState<number[]>([]) // ✅ pour highlight
+  const [highlightedIds, setHighlightedIds] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [filterStatus, setFilterStatus] = useState<Order["status"] | "ALL">("ALL")
+  const [sendingIds, setSendingIds] = useState<number[]>([]) // ⬅️ Pour gérer l’état "En cours d’envoi"
 
+  const { socket, isConnected } = useWebSocket()
   const baseUrl = process.env.NEXT_PUBLIC_API_URL
-  const socketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL
-
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  // Vérifie si une date correspond à aujourd'hui
   const isToday = (dateString: string) => {
     const date = new Date(dateString)
     const today = new Date()
@@ -49,50 +50,12 @@ export function OrdersManager() {
     )
   }
 
-  useEffect(() => {
-    fetchOrders()
-
-    const socket: Socket = io(socketUrl, { withCredentials: true })
-    socket.emit("admin:join") // ✅ rejoindre la room admins
-
-    socket.on("order:new", (newOrder: Order) => {
-      if (isToday(newOrder.createdAt)) {
-        setOrders(prev => [newOrder, ...prev])
-
-        // ✅ Highlight la commande
-        setHighlightedIds(prev => [...prev, newOrder.id])
-        setTimeout(() => {
-          setHighlightedIds(prev => prev.filter(id => id !== newOrder.id))
-        }, 3000)
-
-        // 🔔 Jouer le son
-        if (audioRef.current) {
-          audioRef.current.currentTime = 0
-          audioRef.current.play().catch(() => {})
-        }
-      }
-    })
-
-    socket.on("order:status", (updatedOrder: Order) => {
-      if (isToday(updatedOrder.createdAt)) {
-        setOrders(prev =>
-          prev.map(order => (order.id === updatedOrder.id ? updatedOrder : order))
-        )
-      }
-    })
-
-    return () => {
-      socket.disconnect()
-    }
-  }, [])
-
   const fetchOrders = async () => {
     try {
       const response = await fetch(`${baseUrl}/orders`, { credentials: "include" })
       if (response.ok) {
-        const data = await response.json()
-        const ordersData = data.orders || data
-        setOrders(ordersData.filter((order: Order) => isToday(order.createdAt)))
+        const data: Order[] = await response.json()
+        setOrders(data.filter(order => isToday(order.createdAt)))
       } else {
         setError("Erreur lors du chargement des commandes")
       }
@@ -103,7 +66,44 @@ export function OrdersManager() {
     }
   }
 
+  useEffect(() => {
+    fetchOrders()
+    if (!socket) return
+
+    socket.emit("admin:join")
+
+    socket.on("order:new", (newOrder: Order) => {
+      if (!isToday(newOrder.createdAt)) return
+      setOrders(prev => [newOrder, ...prev])
+      setHighlightedIds(prev => [...prev, newOrder.id])
+      setTimeout(() => setHighlightedIds(prev => prev.filter(id => id !== newOrder.id)), 3000)
+
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0
+        audioRef.current.play().catch(() => {})
+      }
+    })
+
+    socket.on("order:status", (updatedOrder: Order) => {
+      if (!isToday(updatedOrder.createdAt)) return
+      setOrders(prev => prev.map(order => order.id === updatedOrder.id ? updatedOrder : order))
+      setSendingIds(prev => prev.filter(id => id !== updatedOrder.id)) // ⬅️ Reset du bouton
+    })
+
+    socket.on("order:update", (updatedOrder: Order) => {
+      if (!isToday(updatedOrder.createdAt)) return
+      setOrders(prev => prev.map(order => order.id === updatedOrder.id ? updatedOrder : order))
+    })
+
+    return () => {
+      socket.off("order:new")
+      socket.off("order:status")
+      socket.off("order:update")
+    }
+  }, [socket, isConnected])
+
   const updateOrderStatus = async (orderId: number, newStatus: Order["status"]) => {
+    setSendingIds(prev => [...prev, orderId]) // ⬅️ On active "En cours d’envoi"
     try {
       const response = await fetch(`${baseUrl}/orders/${orderId}/status`, {
         method: "PATCH",
@@ -111,18 +111,10 @@ export function OrdersManager() {
         body: JSON.stringify({ status: newStatus }),
         credentials: "include",
       })
-      if (!response.ok) {
-        setError("Erreur lors de la mise à jour du statut")
-        return
-      }
-
-      setOrders(prev =>
-        prev.map(order =>
-          order.id === orderId ? { ...order, status: newStatus } : order
-        )
-      )
+      if (!response.ok) throw new Error()
     } catch {
-      setError("Erreur de connexion au serveur")
+      setError("Erreur lors de la mise à jour du statut")
+      setSendingIds(prev => prev.filter(id => id !== orderId)) // ⬅️ Reset en cas d’erreur
     }
   }
 
@@ -178,21 +170,21 @@ export function OrdersManager() {
     )
   }
 
+  const Spinner = () => (
+    <div className="animate-spin h-4 w-4 border-2 border-t-transparent border-white rounded-full"></div>
+  )
+
   return (
     <div className="space-y-6">
       <audio ref={audioRef} src="/sounds/MÉLODIE K - XYLOPHONE COURT (HOROFRANCE)  SONNERIE ÉCOLECOLLÈGELYCÉEEREACFA.mp3" preload="auto" />
 
-      {/* Header et filtres */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Gestion des Commandes</h1>
-          <p className="text-muted-foreground mt-2">
-            Suivez et gérez les commandes en temps réel 🚀
-          </p>
+          <p className="text-muted-foreground mt-2">Suivez et gérez les commandes en temps réel 🚀</p>
         </div>
-
         <div className="flex gap-2">
-          {["ALL","PENDING","PREPARING","READY"].map(st => (
+          {["ALL", "PENDING", "PREPARING", "READY"].map(st => (
             <Button
               key={st}
               variant={filterStatus === st ? "default" : "outline"}
@@ -210,7 +202,6 @@ export function OrdersManager() {
         </Alert>
       )}
 
-      {/* Liste des commandes */}
       <div className="space-y-4">
         {filteredOrders.map(order => (
           <Card
@@ -222,7 +213,7 @@ export function OrdersManager() {
             <CardHeader className="flex justify-between items-start">
               <div>
                 <CardTitle className="text-lg">
-                  Commande #{order.id} - <span className="font-semibold text-primary">Table {order.tableNumber}</span>
+                  Commande #{order.dailyNumber} - <span className="font-semibold text-primary">Table {order.tableNumber}</span>
                 </CardTitle>
                 <CardDescription>Passée le {new Date(order.createdAt).toLocaleString()}</CardDescription>
                 {order.customerName && <p className="text-sm mt-1">👤 Client : {order.customerName}</p>}
@@ -230,10 +221,7 @@ export function OrdersManager() {
               </div>
               <div className="flex flex-col items-end gap-2">
                 <Badge className={getStatusColor(order.status)}>
-                  <span className="flex items-center gap-1">
-                    {getStatusIcon(order.status)}
-                    {getStatusText(order.status)}
-                  </span>
+                  <span className="flex items-center gap-1">{getStatusIcon(order.status)}{getStatusText(order.status)}</span>
                 </Badge>
                 <div className="text-lg font-bold text-primary">Total : {order.totalAmount} CFA</div>
               </div>
@@ -243,20 +231,28 @@ export function OrdersManager() {
                 {order.items.map((item, i) => (
                   <div key={i} className="flex justify-between text-sm">
                     <span>{item.quantity} × {item.dishName}</span>
-                    <span>{item.price * item.quantity} CFA</span>
+                    <span>{item.subtotal} CFA</span>
                   </div>
                 ))}
               </div>
-
               {getNextStatus(order.status) && (
                 <Button
                   size="sm"
                   onClick={() => updateOrderStatus(order.id, getNextStatus(order.status)!)}
-                  className="flex-1"
+                  className="flex items-center justify-center gap-2 flex-1"
+                  disabled={sendingIds.includes(order.id)}
                 >
-                  {getNextStatus(order.status) === "PREPARING" && "Commencer"}
-                  {getNextStatus(order.status) === "READY" && "Marquer comme prêt"}
-                  {getNextStatus(order.status) === "DELIVERED" && "Marquer comme livré"}
+                  {sendingIds.includes(order.id) ? (
+                    <>
+                      <Spinner />
+                      En cours d’envoi...
+                    </>
+                  ) : (
+                    getNextStatus(order.status) === "PREPARING" ? "Commencer" :
+                    getNextStatus(order.status) === "READY" ? "Marquer comme prêt" :
+                    getNextStatus(order.status) === "DELIVERED" ? "Marquer comme livré" :
+                    ""
+                  )}
                 </Button>
               )}
             </CardContent>
