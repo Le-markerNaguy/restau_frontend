@@ -4,15 +4,8 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Plus, Edit, Trash2, Table as TableIcon, QrCode } from "lucide-react"
@@ -197,7 +190,7 @@ export function TablesManager() {
               <DialogTitle>
                 {editingTable ? "Modifier la table" : "Ajouter une nouvelle table"}
               </DialogTitle>
-              <DialogDescription>Configurez le numéro de la table</DialogDescription>
+              <p className="text-muted-foreground mt-1">Configurez le numéro de la table</p>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -223,13 +216,6 @@ export function TablesManager() {
           </DialogContent>
         </Dialog>
       </div>
-
-      {/* Erreur globale */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -274,13 +260,11 @@ export function TablesManager() {
               <div className="flex justify-between items-start">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <TableIcon className="h-4 w-4 text-primary" />
-                  Table {table.number}
+                  Table {table.number} (ID: {table.id})
                 </CardTitle>
                 {table.currentOrder && table.currentOrder.status !== "DELIVERED" && (
-                  <Badge className="bg-blue-100 text-blue-800">
-                    <span className="flex items-center gap-1">
-                      <QrCode className="h-4 w-4" /> Commande active
-                    </span>
+                  <Badge className="bg-blue-100 text-blue-800 flex items-center gap-1">
+                    <QrCode className="h-4 w-4" /> Commande active
                   </Badge>
                 )}
               </div>
@@ -301,7 +285,7 @@ export function TablesManager() {
                       {new Date(table.currentOrder.createdAt).toLocaleTimeString()}
                     </div>
                     <div className="font-medium text-primary">
-                      {table.currentOrder.totalAmount} €
+                      {table.currentOrder.totalAmount} CFA
                     </div>
                     <Badge className="bg-blue-200 text-blue-900">{table.currentOrder.status}</Badge>
                   </div>

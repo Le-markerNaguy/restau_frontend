@@ -50,7 +50,7 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [cartOpen, setCartOpen] = useState(false)
-  const [selectedTable, setSelectedTable] = useState<number | null>(null)
+  const [selectedTable, setSelectedTable] = useState<number | null>(null) // id de la table
   const [customerName, setCustomerName] = useState<string>("")
   const [clickCount, setClickCount] = useState(0)
   const [showAdmin, setShowAdmin] = useState(false)
@@ -58,7 +58,7 @@ export default function HomePage() {
 
   const router = useRouter()
   const searchParams = useSearchParams()
-  const tableFromUrl = searchParams.get("table") // récupère table=ID dans l’URL
+  const tableFromUrl = searchParams.get("table") // récupère ?table=ID dans l’URL
 
   // 🔹 Préfixe images
   const getImageUrl = (imageUrl?: string) => {
@@ -103,7 +103,7 @@ export default function HomePage() {
     fetchTables()
   }, [])
 
-  // Pré-sélection de la table si fournie dans l’URL
+  // Pré-sélection de la table si fournie dans l’URL (ID interne)
   useEffect(() => {
     if (tableFromUrl) {
       setSelectedTable(Number(tableFromUrl))
@@ -153,7 +153,7 @@ export default function HomePage() {
     if (cart.length === 0) return alert("Le panier est vide")
 
     const orderData = {
-      tableId: selectedTable,
+      tableId: selectedTable, // ✅ on envoie l’ID
       nom: customerName || "",
       plats: cart.map(c => ({ platId: c.platId, quantite: c.quantite })),
     }
@@ -211,6 +211,13 @@ export default function HomePage() {
           >
             RestauOpti
           </h1>
+
+          {/* Badge table visible si QR code */}
+          {tableFromUrl && selectedTable && (
+            <Badge variant="outline" className="ml-4">
+              Table {tables.find(t => t.id === selectedTable)?.number ?? "?"}
+            </Badge>
+          )}
 
           {showAdmin && (
             <Button
@@ -294,19 +301,25 @@ export default function HomePage() {
                 <X className="cursor-pointer" onClick={() => setCartOpen(false)} />
               </div>
 
-              <select
-                value={selectedTable || ""}
-                onChange={(e) => setSelectedTable(Number(e.target.value))}
-                className="w-full mb-2 border rounded px-2 py-1"
-                disabled={!!tableFromUrl} // 🔒 désactive si QR code a fixé la table
-              >
-                <option value="" disabled>Choisir une table</option>
-                {tables.map(t => (
-                  <option key={t.id} value={t.id}>
-                    Table {t.number}
-                  </option>
-                ))}
-              </select>
+              {/* Sélection de la table */}
+              {tableFromUrl ? (
+                <div className="w-full mb-2 px-2 py-1 border rounded bg-muted">
+                  Table {tables.find(t => t.id === selectedTable)?.number ?? "?"}
+                </div>
+              ) : (
+                <select
+                  value={selectedTable || ""}
+                  onChange={(e) => setSelectedTable(Number(e.target.value))}
+                  className="w-full mb-2 border rounded px-2 py-1"
+                >
+                  <option value="" disabled>Choisir une table</option>
+                  {tables.map(t => (
+                    <option key={t.id} value={t.id}>
+                      Table {t.number}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               <Input
                 placeholder="Nom du client (optionnel)"
