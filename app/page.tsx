@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, Plus, X, Utensils, Loader2 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 // 🔹 Types
 interface Dish {
@@ -54,8 +54,11 @@ export default function HomePage() {
   const [customerName, setCustomerName] = useState<string>("")
   const [clickCount, setClickCount] = useState(0)
   const [showAdmin, setShowAdmin] = useState(false)
-  const [isSending, setIsSending] = useState(false) // 🔹 nouvel état
+  const [isSending, setIsSending] = useState(false)
+
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const tableFromUrl = searchParams.get("table") // récupère table=ID dans l’URL
 
   // 🔹 Préfixe images
   const getImageUrl = (imageUrl?: string) => {
@@ -99,6 +102,13 @@ export default function HomePage() {
     }
     fetchTables()
   }, [])
+
+  // Pré-sélection de la table si fournie dans l’URL
+  useEffect(() => {
+    if (tableFromUrl) {
+      setSelectedTable(Number(tableFromUrl))
+    }
+  }, [tableFromUrl])
 
   const getCategories = () => ["all", ...new Set(dishes.map(d => d.category))]
   const categories = getCategories()
@@ -149,7 +159,7 @@ export default function HomePage() {
     }
 
     try {
-      setIsSending(true) // 🔹 on passe en mode envoi
+      setIsSending(true)
       const response = await fetch(`${baseUrl}/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -169,7 +179,7 @@ export default function HomePage() {
       console.error(error)
       alert("Erreur serveur")
     } finally {
-      setIsSending(false) // 🔹 fin de l'envoi
+      setIsSending(false)
     }
   }
 
@@ -288,6 +298,7 @@ export default function HomePage() {
                 value={selectedTable || ""}
                 onChange={(e) => setSelectedTable(Number(e.target.value))}
                 className="w-full mb-2 border rounded px-2 py-1"
+                disabled={!!tableFromUrl} // 🔒 désactive si QR code a fixé la table
               >
                 <option value="" disabled>Choisir une table</option>
                 {tables.map(t => (
