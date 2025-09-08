@@ -50,8 +50,10 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [cartOpen, setCartOpen] = useState(false)
-  const [selectedTableId, setSelectedTableId] = useState<number | null>(null)
-  const [selectedTableNumber, setSelectedTableNumber] = useState<number | null>(null)
+
+  // 🔹 Table sélectionnée
+  const [selectedTable, setSelectedTable] = useState<number | null>(null) // stocke l'ID
+  const [selectedTableNumber, setSelectedTableNumber] = useState<number | null>(null) // stocke le numéro
   const [customerName, setCustomerName] = useState<string>("")
   const [clickCount, setClickCount] = useState(0)
   const [showAdmin, setShowAdmin] = useState(false)
@@ -59,7 +61,7 @@ export default function HomePage() {
 
   const router = useRouter()
   const searchParams = useSearchParams()
-  const tableFromUrl = searchParams.get("table") // récupère table=ID dans l’URL
+  const tableFromUrl = searchParams.get("table") // récupère "1003"
 
   // 🔹 Préfixe images
   const getImageUrl = (imageUrl?: string) => {
@@ -68,7 +70,7 @@ export default function HomePage() {
     return `${imageBaseUrl}${imageUrl}`
   }
 
-  // 🔹 Fetch plats
+  // Fetch plats
   useEffect(() => {
     const fetchDishes = async () => {
       try {
@@ -86,7 +88,7 @@ export default function HomePage() {
     fetchDishes()
   }, [])
 
-  // 🔹 Fetch tables
+  // Fetch tables
   useEffect(() => {
     const fetchTables = async () => {
       try {
@@ -104,14 +106,14 @@ export default function HomePage() {
     fetchTables()
   }, [])
 
-  // 🔹 Pré-sélection table si QR code
+  // 🔹 Sélection de la table depuis l’URL (par numéro)
   useEffect(() => {
     if (tableFromUrl && tables.length > 0) {
-      const tableId = Number(tableFromUrl)
-      const table = tables.find(t => t.id === tableId)
+      const tableNumber = Number(tableFromUrl)
+      const table = tables.find(t => t.number === tableNumber)
       if (table) {
-        setSelectedTableId(table.id)       // pour l’API
-        setSelectedTableNumber(table.number) // pour affichage
+        setSelectedTable(table.id)          // utilisé pour la commande
+        setSelectedTableNumber(table.number) // affiché à l’écran
       }
     }
   }, [tableFromUrl, tables])
@@ -119,12 +121,14 @@ export default function HomePage() {
   const getCategories = () => ["all", ...new Set(dishes.map(d => d.category))]
   const categories = getCategories()
 
+  // Filtrage
   const filteredDishes = dishes.filter(dish => {
     const matchesSearch = dish.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCategory = selectedCategory === "all" || dish.category === selectedCategory
     return matchesSearch && matchesCategory
   })
 
+  // Ajouter au panier
   const addToCart = (dish: Dish) => {
     setCart(prev => {
       const existing = prev.find(item => item.platId === dish.id)
@@ -153,11 +157,11 @@ export default function HomePage() {
   }
 
   const handleOrder = async () => {
-    if (!selectedTableId) return alert("Veuillez sélectionner une table")
+    if (!selectedTable) return alert("Veuillez sélectionner une table")
     if (cart.length === 0) return alert("Le panier est vide")
 
     const orderData = {
-      tableId: selectedTableId,
+      tableId: selectedTable, // ⚡️ envoie l’ID au backend
       nom: customerName || "",
       plats: cart.map(c => ({ platId: c.platId, quantite: c.quantite })),
     }
@@ -189,6 +193,7 @@ export default function HomePage() {
 
   const total = cart.reduce((sum, item) => sum + item.dish.price * item.quantite, 0)
 
+  // 🔹 Gestion bouton Admin
   const handleTitleClick = () => {
     setClickCount(prev => {
       const newCount = prev + 1
@@ -297,13 +302,20 @@ export default function HomePage() {
                 <X className="cursor-pointer" onClick={() => setCartOpen(false)} />
               </div>
 
+              {/* 🔹 Affiche numéro de la table */}
+              {selectedTableNumber && (
+                <div className="mb-2 text-sm text-muted-foreground">
+                  🪑 Table {selectedTableNumber}
+                </div>
+              )}
+
               <select
-                value={selectedTableId || ""}
+                value={selectedTable || ""}
                 onChange={(e) => {
-                  const id = Number(e.target.value)
-                  const table = tables.find(t => t.id === id)
+                  const tableId = Number(e.target.value)
+                  const table = tables.find(t => t.id === tableId)
                   if (table) {
-                    setSelectedTableId(table.id)
+                    setSelectedTable(table.id)
                     setSelectedTableNumber(table.number)
                   }
                 }}
@@ -317,12 +329,6 @@ export default function HomePage() {
                   </option>
                 ))}
               </select>
-
-              {selectedTableNumber && (
-                <div className="mb-2 font-medium">
-                  Table sélectionnée : {selectedTableNumber}
-                </div>
-              )}
 
               <Input
                 placeholder="Nom du client (optionnel)"
@@ -361,7 +367,7 @@ export default function HomePage() {
               <Button
                 className="w-full flex items-center justify-center gap-2"
                 onClick={handleOrder}
-                disabled={cart.length === 0 || !selectedTableId || isSending}
+                disabled={cart.length === 0 || !selectedTable || isSending}
               >
                 {isSending ? (
                   <>
