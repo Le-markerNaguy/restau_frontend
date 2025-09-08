@@ -50,7 +50,7 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [cartOpen, setCartOpen] = useState(false)
-  const [selectedTable, setSelectedTable] = useState<number | null>(null) // id de la table
+  const [selectedTable, setSelectedTable] = useState<number | null>(null)
   const [customerName, setCustomerName] = useState<string>("")
   const [clickCount, setClickCount] = useState(0)
   const [showAdmin, setShowAdmin] = useState(false)
@@ -58,7 +58,7 @@ export default function HomePage() {
 
   const router = useRouter()
   const searchParams = useSearchParams()
-  const tableFromUrl = searchParams.get("table") // récupère ?table=ID dans l’URL
+  const tableFromUrl = searchParams.get("table") // récupère table=ID dans l’URL
 
   // 🔹 Préfixe images
   const getImageUrl = (imageUrl?: string) => {
@@ -67,7 +67,7 @@ export default function HomePage() {
     return `${imageBaseUrl}${imageUrl}`
   }
 
-  // Fetch plats
+  // 🔹 Fetch plats
   useEffect(() => {
     const fetchDishes = async () => {
       try {
@@ -75,9 +75,7 @@ export default function HomePage() {
         if (response.ok) {
           const data = await response.json()
           setDishes(data.filter((dish: Dish) => dish.available))
-        } else {
-          setDishes([])
-        }
+        } else setDishes([])
       } catch {
         setDishes([])
       }
@@ -85,7 +83,7 @@ export default function HomePage() {
     fetchDishes()
   }, [])
 
-  // Fetch tables
+  // 🔹 Fetch tables
   useEffect(() => {
     const fetchTables = async () => {
       try {
@@ -93,9 +91,7 @@ export default function HomePage() {
         if (response.ok) {
           const data = await response.json()
           setTables(data)
-        } else {
-          setTables([])
-        }
+        } else setTables([])
       } catch {
         setTables([])
       }
@@ -103,24 +99,26 @@ export default function HomePage() {
     fetchTables()
   }, [])
 
-  // Pré-sélection de la table si fournie dans l’URL (ID interne)
+  // 🔹 Pré-sélection table si URL contient ID
   useEffect(() => {
-    if (tableFromUrl) {
-      setSelectedTable(Number(tableFromUrl))
+    if (tableFromUrl && tables.length > 0) {
+      const tableId = Number(tableFromUrl)
+      const table = tables.find(t => t.id === tableId)
+      if (table) setSelectedTable(table.id)
     }
-  }, [tableFromUrl])
+  }, [tableFromUrl, tables])
 
   const getCategories = () => ["all", ...new Set(dishes.map(d => d.category))]
   const categories = getCategories()
 
-  // Filtrage
+  // 🔹 Filtrage des plats
   const filteredDishes = dishes.filter(dish => {
     const matchesSearch = dish.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCategory = selectedCategory === "all" || dish.category === selectedCategory
     return matchesSearch && matchesCategory
   })
 
-  // Ajouter au panier
+  // 🔹 Ajouter au panier
   const addToCart = (dish: Dish) => {
     setCart(prev => {
       const existing = prev.find(item => item.platId === dish.id)
@@ -153,7 +151,7 @@ export default function HomePage() {
     if (cart.length === 0) return alert("Le panier est vide")
 
     const orderData = {
-      tableId: selectedTable, // ✅ on envoie l’ID
+      tableId: selectedTable,
       nom: customerName || "",
       plats: cart.map(c => ({ platId: c.platId, quantite: c.quantite })),
     }
@@ -185,7 +183,7 @@ export default function HomePage() {
 
   const total = cart.reduce((sum, item) => sum + item.dish.price * item.quantite, 0)
 
-  // 🔹 Gestion bouton Admin
+  // 🔹 Admin click
   const handleTitleClick = () => {
     setClickCount(prev => {
       const newCount = prev + 1
@@ -211,20 +209,8 @@ export default function HomePage() {
           >
             RestauOpti
           </h1>
-
-          {/* Badge table visible si QR code */}
-          {tableFromUrl && selectedTable && (
-            <Badge variant="outline" className="ml-4">
-              Table {tables.find(t => t.id === selectedTable)?.number ?? "?"}
-            </Badge>
-          )}
-
           {showAdmin && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/login")}
-            >
+            <Button variant="ghost" size="sm" onClick={() => router.push("/login")}>
               Admin
             </Button>
           )}
@@ -301,25 +287,20 @@ export default function HomePage() {
                 <X className="cursor-pointer" onClick={() => setCartOpen(false)} />
               </div>
 
-              {/* Sélection de la table */}
-              {tableFromUrl ? (
-                <div className="w-full mb-2 px-2 py-1 border rounded bg-muted">
-                  Table {tables.find(t => t.id === selectedTable)?.number ?? "?"}
-                </div>
-              ) : (
-                <select
-                  value={selectedTable || ""}
-                  onChange={(e) => setSelectedTable(Number(e.target.value))}
-                  className="w-full mb-2 border rounded px-2 py-1"
-                >
-                  <option value="" disabled>Choisir une table</option>
-                  {tables.map(t => (
-                    <option key={t.id} value={t.id}>
-                      Table {t.number}
-                    </option>
-                  ))}
-                </select>
-              )}
+              {/* 🔹 Sélect table avec ID mais affichage du numéro */}
+              <select
+                value={selectedTable || ""}
+                onChange={(e) => setSelectedTable(Number(e.target.value))}
+                className="w-full mb-2 border rounded px-2 py-1"
+                disabled={!!tableFromUrl} // désactive si QR code fixe la table
+              >
+                <option value="" disabled>Choisir une table</option>
+                {tables.map(t => (
+                  <option key={t.id} value={t.id}>
+                    Table {t.number}
+                  </option>
+                ))}
+              </select>
 
               <Input
                 placeholder="Nom du client (optionnel)"
