@@ -1,12 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Search, Plus, X, Utensils, Loader2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
+import Header from "@/components/pageAcceuil/Header"
+import MenuSection from "@/components/pageAcceuil/MenuSection"
+import FloatingCart from "@/components/pageAcceuil/FloatingCart"
 
 // 🔹 Types
 interface Dish {
@@ -209,179 +207,42 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background relative">
-      {/* Header */}
-      <header className="bg-card border-b sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1
-            className="text-2xl font-bold text-primary cursor-pointer"
-            onClick={handleTitleClick}
-          >
-            RestauOpti
-          </h1>
-
-          {showAdmin && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/login")}
-            >
-              Admin
-            </Button>
-          )}
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Menu */}
-        <div className="lg:col-span-3">
-          <div className="mb-4 flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4"/>
-              <Input
-                placeholder="Rechercher un plat..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="border rounded px-2 py-1"
-            >
-              {categories.map(cat => <option key={cat} value={cat}>{cat === "all" ? "Tous" : cat}</option>)}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredDishes.map(dish => (
-              <Card
-                key={dish.id}
-                className="overflow-hidden rounded-xl shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
-              >
-                <div className="aspect-square relative">
-                  <img
-                    src={getImageUrl(dish.imageUrl)}
-                    alt={dish.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start gap-2">
-                    <CardTitle className="text-base font-semibold">{dish.name}</CardTitle>
-                    <Badge variant="secondary" className="capitalize text-xs">{dish.category}</Badge>
-                  </div>
-                  <CardDescription className="text-sm line-clamp-2">{dish.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0 flex justify-between items-center">
-                  <span className="text-lg font-bold text-primary">{formatCFA(dish.price)}</span>
-                  <Button onClick={() => addToCart(dish)} size="sm" className="shrink-0">
-                    <Plus className="h-4 w-4 mr-1"/>Ajouter
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* Panier flottant */}
-        <div className="lg:col-span-1 relative">
-          <div
-            className="fixed bottom-8 right-8 bg-primary text-white p-4 rounded-full shadow-lg cursor-pointer z-50"
-            onClick={() => setCartOpen(!cartOpen)}
-          >
-            <Utensils className="inline h-5 w-5" />
-            {cart.length > 0 && <span className="ml-2 text-sm">{cart.length}</span>}
-          </div>
-
-          {cartOpen && (
-            <div className="fixed bottom-24 right-8 w-80 max-h-[70vh] bg-card shadow-lg rounded-lg p-4 overflow-y-auto z-50">
-              <div className="flex justify-between items-center mb-2">
-                <h2 className="font-bold text-lg">Panier</h2>
-                <X className="cursor-pointer" onClick={() => setCartOpen(false)} />
-              </div>
-
-              {/* 🔹 Affiche numéro de la table */}
-              {selectedTableNumber && (
-                <div className="mb-2 text-sm text-muted-foreground">
-                  🪑 Table {selectedTableNumber}
-                </div>
-              )}
-
-              <select
-                value={selectedTable || ""}
-                onChange={(e) => {
-                  const tableId = Number(e.target.value)
-                  const table = tables.find(t => t.id === tableId)
-                  if (table) {
-                    setSelectedTable(table.id)
-                    setSelectedTableNumber(table.number)
-                  }
-                }}
-                className="w-full mb-2 border rounded px-2 py-1"
-                disabled={!!tableFromUrl} // 🔒 désactive si QR code a fixé la table
-              >
-                <option value="" disabled>Choisir une table</option>
-                {tables.map(t => (
-                  <option key={t.id} value={t.id}>
-                    Table {t.number}
-                  </option>
-                ))}
-              </select>
-
-              <Input
-                placeholder="Nom du client (optionnel)"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="mb-2"
-              />
-
-              <div className="space-y-2 mb-4">
-                {cart.map(item => (
-                  <div key={item.platId} className="flex justify-between items-center">
-                    <span>{item.dish.name} x{item.quantite}</span>
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6 w-6 p-0"
-                        onClick={() => updateCartQuantity(item.platId, 1)}
-                      >+</Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6 w-6 p-0"
-                        onClick={() => updateCartQuantity(item.platId, -1)}
-                      >-</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex justify-between font-bold mb-2">
-                <span>Total</span>
-                <span>{formatCFA(total)}</span>
-              </div>
-
-              <Button
-                className="w-full flex items-center justify-center gap-2"
-                onClick={handleOrder}
-                disabled={cart.length === 0 || !selectedTable || isSending}
-              >
-                {isSending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Commande en cours d’envoi…
-                  </>
-                ) : (
-                  "Valider la commande"
-                )}
-              </Button>
-            </div>
-          )}
+      <div className="min-h-screen bg-background relative">
+        <Header
+          showAdmin={showAdmin}
+          onTitleClick={handleTitleClick}
+          onAdminClick={() => router.push("/login")}
+        />
+        <div className="container mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+          <MenuSection
+            dishes={dishes}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            selectedCategory={selectedCategory}
+            setSelectedCategory={setSelectedCategory}
+            addToCart={addToCart}
+            formatCFA={formatCFA}
+            getImageUrl={getImageUrl}
+          />
+          <FloatingCart
+            cart={cart}
+            cartOpen={cartOpen}
+            setCartOpen={setCartOpen}
+            tables={tables}
+            selectedTable={selectedTable}
+            setSelectedTable={setSelectedTable}
+            selectedTableNumber={selectedTableNumber}
+            setSelectedTableNumber={setSelectedTableNumber}
+            customerName={customerName}
+            setCustomerName={setCustomerName}
+            updateCartQuantity={updateCartQuantity}
+            handleOrder={handleOrder}
+            isSending={isSending}
+            total={total}
+            tableFromUrl={tableFromUrl}
+            formatCFA={formatCFA}
+          />
         </div>
       </div>
-    </div>
   )
 }
